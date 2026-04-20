@@ -1,0 +1,1044 @@
+{
+  "name": "Hubcredo-- People finder",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -192,
+        648
+      ],
+      "id": "1b9968e7-75ac-4567-87ca-50aef2f129d1",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://emailverifier.reoon.com/api/v1/create-bulk-verification-task",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "emails",
+              "value": "={{ $json.emails }}"
+            },
+            {
+              "name": "key",
+              "value": "={{ $json.key }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2992,
+        496
+      ],
+      "id": "5fa738d8-4311-4058-b5ee-63a605f087b3",
+      "name": "Reoon Verify"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        704,
+        648
+      ],
+      "id": "d59195b0-015c-43ed-821f-8536681dd602",
+      "name": "STEP 1: Apollo People Search",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code Node - Extract Contact Data from Apollo Bulk Enrichment Response\n\nconst items = $input.all();\nconst extractedContacts = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // Check if matches array exists\n  const matches = data.matches || [];\n  \n  matches.forEach(person => {\n    extractedContacts.push({\n      json: {\n        // Basic identification\n        id: person.id || '',\n        first_name: person.first_name || '',\n        last_name: person.last_name || '',\n        name: person.name || '',\n        \n        // Contact information\n        email: person.email || '',\n        email_status: person.email_status || '',\n        phone: person.organization?.phone || person.organization?.primary_phone?.number || '',\n        linkedin_url: person.linkedin_url || '',\n        \n        // Professional information\n        title: person.title || '',\n        position: person.title || '', // Same as title\n        headline: person.headline || '',\n        seniority: person.seniority || '',\n        \n        // Company/Organization information\n        company_name: person.organization?.name || '',\n        organization_id: person.organization_id || '',\n        organization_website: person.organization?.website_url || '',\n        organization_phone: person.organization?.phone || '',\n        organization_domain: person.organization?.primary_domain || '',\n        organization_industry: person.organization?.industry || '',\n        organization_employees: person.organization?.estimated_num_employees || '',\n        organization_revenue: person.organization?.organization_revenue_printed || '',\n        \n        // Location information\n        city: person.city || '',\n        state: person.state || '',\n        country: person.country || '',\n        formatted_address: person.formatted_address || '',\n        \n        // Additional useful fields\n        photo_url: person.photo_url || '',\n        personal_emails: (person.personal_emails || []).join('; '),\n        departments: (person.departments || []).join('; '),\n        subdepartments: (person.subdepartments || []).join('; '),\n        functions: (person.functions || []).join('; '),\n        \n        // Current employment\n        current_company: person.employment_history?.[0]?.organization_name || '',\n        current_title: person.employment_history?.[0]?.title || '',\n        current_start_date: person.employment_history?.[0]?.start_date || '',\n      }\n    });\n  });\n}\n\nreturn extractedContacts;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2544,
+        400
+      ],
+      "id": "75dc93b6-41a0-48a3-b870-3100a2b26ff8",
+      "name": "Normalize Bulk Results"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.apollo.io/api/v1/people/bulk_match?reveal_personal_emails=true&reveal_phone_number=false'",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"details\": $json.body.details } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        400
+      ],
+      "id": "b8772bdf-244e-4e43-99ef-bba8038edec5",
+      "name": "STEP 1: Apollo People Search1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data for Reoon Bulk Verification\nconst items = $input.all();\n\n// Collect all emails into an array\nconst emails = items\n  .map(item => item.json.email)\n  .filter(email => email && email !== '' && email !== '<REDACTED_EMAIL>');\n\n// Return single item with the array\nreturn [{\n  json: {\n    name: `k ${new Date().toISOString()}`,\n    emails: emails,  // This is an array\n    key: \"<REOON_API_KEY>\"  // Replace with your actual API key\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2768,
+        496
+      ],
+      "id": "5c4446dd-d40f-4a0d-b58b-8aa55c89c059",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "first_name, last_name, email, email_status, phone, linkedin_url, position, company_name, organization_website, organization_domain, organization_phone, city, state, organization_revenue, country, name",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        3440,
+        304
+      ],
+      "id": "660bb292-db59-43de-8f3c-0b5a01200ce0",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1cpGb62N49IJ87N0c_k0ZPmPTiL0uP8Z21xOqmAmWElg",
+          "mode": "list",
+          "cachedResultName": "FlexScale Project",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<REDACTED_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Book-Keepers",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<REDACTED_SHEET_ID>/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "First Name": "={{ $json.first_name }}",
+            "Last Name": "={{ $json.last_name }}",
+            "Company Name": "={{ $json.company_name }}",
+            "LinkedIn": "={{ $json.linkedin_url }}",
+            "Email ": "={{ $json.email }}",
+            "Organization Domain ": "={{ $json.organization_domain }}",
+            "Full Name": "<REDACTED_NAME>",
+            "Position": "={{ $json.position }}",
+            "Organization website": "={{ $json.organization_website }}",
+            "State": "={{ $json.state }}",
+            "City": "={{ $json.city }}",
+            "Organization Phone": "={{ $json.organization_phone }}",
+            "Email Verified?": "={{ $json.email_status }}",
+            "Update At": "={{ $now }}",
+            "Revenue": "={{ $json.organization_revenue }}",
+            "Country": "={{ $json.country }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Update At",
+              "displayName": "Update At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "First Name",
+              "displayName": "First Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Last Name",
+              "displayName": "Last Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "LinkedIn",
+              "displayName": "LinkedIn",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email ",
+              "displayName": "Email ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email Verified?",
+              "displayName": "Email Verified?",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Position",
+              "displayName": "Position",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Organization Domain ",
+              "displayName": "Organization Domain ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Organization Phone",
+              "displayName": "Organization Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "City",
+              "displayName": "City",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company Name",
+              "displayName": "Company Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "State",
+              "displayName": "State",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Revenue",
+              "displayName": "Revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Organization website",
+              "displayName": "Organization website",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ICP Match ",
+              "displayName": "ICP Match ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Country",
+              "displayName": "Country",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4112,
+        472
+      ],
+      "id": "1f81e687-7ed9-4f76-9c57-56fbf5bc529f",
+      "name": "BookKeepers sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3216,
+        496
+      ],
+      "id": "312e563e-3475-450d-a40d-d43a82c92110",
+      "name": "Wait",
+      "webhookId": "<REDACTED_WEBHOOK_ID>"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://emailverifier.reoon.com/api/v1/get-result-bulk-verification-task/?key=<REOON_API_KEY>&task_id=' + $('Reoon Verify').item.json.task_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3440,
+        496
+      ],
+      "id": "36e9d158-7dd7-463a-aac1-0b7c69314594",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3664,
+        400
+      ],
+      "id": "4c1ef009-c206-48cf-b54c-80a15d8d056b",
+      "name": "Merge",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass only verified (valid / catch_all / safe) emails\n// n8n Code Node\n\n// Allowed email statuses\nconst allowedStatuses = ['valid', 'catch_all', 'verified', 'safe'];\nconst allowedOuterStatuses = ['running', 'completed'];\n\n// 1. Extract people items (with emails and email_status)\nconst prospectItems = items.filter(\n  item => item.json && typeof item.json.email === 'string' && item.json.email_status\n);\n\n// 2. Extract verification results items (from Reoon API response)\n// Check outer status is 'running' or 'completed'\nconst verifyItems = items.filter(\n  item =>\n    item.json &&\n    typeof item.json.results === 'object' &&\n    allowedOuterStatuses.includes(item.json.status)\n);\n\n// 3. Create a Set of emails marked as valid, catch_all, verified, or safe\nconst allowedEmails = new Set();\n\n// Add emails from Reoon verification results\n// Check inner status within results object\nverifyItems.forEach(item => {\n  const results = item.json.results || {};\n  Object.entries(results).forEach(([email, result]) => {\n    if (\n      result &&\n      result.status &&\n      allowedStatuses.includes(result.status)\n    ) {\n      allowedEmails.add(email.toLowerCase().trim());\n    }\n  });\n});\n\n// 4. Filter people to include only those with allowed emails\n// Check BOTH: email in allowedEmails Set OR email_status in allowedStatuses\nconst filteredOutput = prospectItems\n  .filter(item => {\n    const email = item.json.email.toLowerCase().trim();\n    const emailStatus = item.json.email_status;\n    \n    // Pass if email is in verified set OR if email_status is allowed\n    return allowedEmails.has(email) || allowedStatuses.includes(emailStatus);\n  })\n  .map(item => ({ json: item.json }));\n\n// 5. Return filtered leads\nreturn filteredOutput;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3888,
+        400
+      ],
+      "id": "7e061215-b636-47b6-b5a9-51170c8f6ddd",
+      "name": "Code in JavaScript10",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1600,
+        472
+      ],
+      "id": "6b479a5f-4994-4cac-a878-2429d4787259",
+      "name": "Loop Over Items4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node — limit to <= 3 leads per organization_domain, keep full records, dedupe\n\nconst MAX_PER_DOMAIN = 3;\n\nconst items = $input.all();\n\n// Normalize a domain-ish string (strip protocol, trailing paths, leading www)\nfunction normalizeDomain(raw) {\n  const s = String(raw || '').toLowerCase().trim();\n  if (!s) return '';\n  // strip protocol\n  let d = s.replace(/^https?:\\/\\//, '');\n  // take until first slash\n  d = d.split('/')[0];\n  // strip leading www.\n  d = d.replace(/^www\\./, '');\n  return d;\n}\n\n// Stable dedupe key for a person/lead\nfunction dedupeKey(j) {\n  if (j.id) return `id:${String(j.id)}`;\n  const email = String(j.email || '').toLowerCase().trim();\n  const li = String(j.linkedin_url || '').toLowerCase().trim();\n  const name = String(j.name || '').toLowerCase().trim();\n  const orgId = String(j.organization_id || '').toLowerCase().trim();\n  const title = String(j.current_title || j.title || '').toLowerCase().trim();\n  const orgDomain = normalizeDomain(j.organization_domain);\n  return `k:${email}|${li}|${name}|${orgId}|${title}|${orgDomain}`;\n}\n\nconst seenPerDomain = new Map(); // domain -> Set(keys)\nconst keptCount = new Map();     // domain -> number kept\nconst out = [];\n\nfor (const item of items) {\n  const j = item.json || {};\n  const domain = normalizeDomain(j.organization_domain);\n\n  // skip if no domain (change to include if you prefer: just remove this continue)\n  if (!domain) continue;\n\n  // init maps\n  if (!seenPerDomain.has(domain)) seenPerDomain.set(domain, new Set());\n  if (!keptCount.has(domain)) keptCount.set(domain, 0);\n\n  // enforce max per domain\n  if (keptCount.get(domain) >= MAX_PER_DOMAIN) continue;\n\n  // dedupe within domain\n  const key = dedupeKey(j);\n  const seenSet = seenPerDomain.get(domain);\n  if (seenSet.has(key)) continue;\n\n  seenSet.add(key);\n  keptCount.set(domain, keptCount.get(domain) + 1);\n\n  // keep full original record\n  out.push({ json: j });\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        472
+      ],
+      "id": "cecf9947-e97e-4cc9-9231-57f3fdbfddae",
+      "name": "Limit Leads per Domain (Max 3)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This code goes into an n8n \"Code\" node.\n// It assumes the input is a list of detailed person objects like you provided.\n\n// 1. Get all the incoming items (the list of people).\nconst items = $input.all();\n\n// 2. Use .map() to transform each person object into the required format.\nconst formattedDetails = items.map(item => {\n  const person = item.json;\n\n  // Create a new, smaller object with only the fields Apollo needs for matching.\n  // We include several fields to improve the match accuracy.\n  return {\n    first_name: person.first_name,\n    last_name: person.last_name,\n    linkedin_url: person.linkedin_url,\n    organization_domain: person.organization_domain,\n    title: person.title,\n    id: person.id\n  };\n});\n\n// 3. Create the final request body object, which has a single key \"details\".\nconst requestBody = {\n  details: formattedDetails\n};\n\n// 4. Return the result as a single item.\n// The next node (HTTP Request) will use this output as its body.\nreturn [{\n  json: {\n    // We name the output 'body' for easy reference in the HTTP Request node.\n    body: requestBody\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        400
+      ],
+      "id": "227edca4-8694-42a5-a57b-cc992d98bebf",
+      "name": "Format Leads for Apollo Enrichment Body"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Function Node\n\nconst data = $input.item.json;\n\n// If model_ids is empty or missing, output special message\nif (!Array.isArray(data.model_ids) || data.model_ids.length === 0) {\n  return [{ json: { message: \"No leads found.\" } }];\n}\n\n// Extract people array (compatible with variations in data)\nconst people = Array.isArray(data)\n  ? data[0]?.people || []\n  : data.people || [];\n\n// Map and extract all contact details\nconst extractedContacts = people.map(person => ({\n  // Basic identification\n  id: person.id || '',\n  first_name: person.first_name || '',\n  last_name: person.last_name || '',\n  name: person.name || '',\n  \n  // Contact information\n  email: person.email || '',\n  email_status: person.email_status || '',\n  linkedin_url: person.linkedin_url || '',\n  twitter_url: person.twitter_url || '',\n  github_url: person.github_url || '',\n  facebook_url: person.facebook_url || '',\n  \n  // Professional information\n  title: person.title || '',\n  headline: person.headline || '',\n  seniority: person.seniority || '',\n  \n  // Location information\n  city: person.city || '',\n  state: person.state || '',\n  country: person.country || '',\n  postal_code: person.postal_code || '',\n  formatted_address: person.formatted_address || '',\n  time_zone: person.time_zone || '',\n  \n  // Organization information\n  organization_id: person.organization_id || '',\n  organization_name: person.organization?.name || '',\n  organization_website: person.organization?.website_url || '',\n  organization_phone: person.organization?.phone || '',\n  organization_linkedin: person.organization?.linkedin_url || '',\n  organization_domain: person.organization?.primary_domain || '',\n  organization_founded_year: person.organization?.founded_year || '',\n  \n  // Additional fields\n  photo_url: person.photo_url || '',\n  departments: (person.departments || []).join('; '),\n  subdepartments: (person.subdepartments || []).join('; '),\n  functions: (person.functions || []).join('; '),\n  email_domain_catchall: person.email_domain_catchall || false,\n  \n  // Employment history (current position)\n  current_company: person.employment_history?.[0]?.organization_name || '',\n  current_title: person.employment_history?.[0]?.title || '',\n  current_start_date: person.employment_history?.[0]?.start_date || '',\n  is_current_role: person.employment_history?.[0]?.current || false,\n}));\n\n// Return extracted contacts or message\nreturn extractedContacts.length\n  ? extractedContacts.map(contact => ({ json: contact }))\n  : [{ json: { message: \"No leads found.\" } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        472
+      ],
+      "id": "e2e92b44-a5ae-40ba-a10e-4a97a7e1ab8d",
+      "name": "Extract Contacts from Apollo Enrichment Response",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node — Build Apollo Mixed People Search POST body\n// Simplified version - Companies already filtered by ICP\n\n// 1) Inputs\nconst items = $input.all();\n\n// 2) Extract valid domains and Apollo IDs from scored companies\nconst companies = items.map(item => {\n  const data = item.json;\n  \n  // Clean and extract domain\n  let domain = String(data.Website || data.domain || '').trim();\n  domain = domain\n    .replace(/^https?:\\/\\/(www\\.)?/, '')\n    .replace(/\\/$/, '')\n    .toLowerCase();\n  \n  // Extract Apollo Account ID\n  \n  return {\n    domain: domain,\n    companyName: data['Company Name'] || data.companyName || ''\n  };\n}).filter(c => \n  c.domain && \n  c.domain !== 'not found' && \n  c.domain.includes('.')\n);\n\n// Remove duplicates\nconst uniqueDomains = [...new Set(companies.map(c => c.domain))];\n\n\n// Guard\nif (uniqueDomains.length === 0) {\n  return [{ json: { error: 'No valid domains found in input data' } }];\n}\n\n// 3) Target Titles - Founders & C-Suite only\nconst titles = [\n  // Founders\n  'Founder',\n  'Co-Founder',\n  'Co Founder',\n  'Cofounder',\n  'Founding Partner',\n  \n  // C-Suite\n  'CEO',\n  'Chief Executive Officer',\n  'CFO',\n  'Chief Financial Officer',\n  'COO',\n  'Chief Operating Officer',\n  'CTO',\n  'Chief Technology Officer',\n  'CMO',\n  'Chief Marketing Officer',\n  'CRO',\n  'Chief Revenue Officer',\n  'CIO',\n  'Chief Information Officer',\n  'CPO',\n  'Chief Product Officer',\n  \n  // Sales Leadership\n  'Head of Sales',\n  'VP Sales',\n  'Vice President of Sales',\n  'VP of Sales',\n  'SVP Sales',\n  \n  // Other Key Executives\n  'President',\n  'Managing Director',\n  'Owner'\n];\n\n// 4) Build simplified POST body for mixed_people/search\nconst body = {\n  // Person filters - ONLY targeting founders & C-suite\n  person_titles: titles,\n  person_seniorities: ['founder', 'c_suite', 'owner'],\n  \n  // Domain filter (primary identifier)\n  q_organization_domains: uniqueDomains,\n  \n  // Pagination\n  page: 1,\n  per_page: 100\n};\n\n// Add Apollo IDs if available (helps with accuracy)\n\n// 5) Output for HTTP Request node\nreturn [{\n  json: {\n    url: 'https://api.apollo.io/api/v1/mixed_people/search',\n    method: 'POST',\n    body: body,\n    headers: {\n      'Content-Type': 'application/json',\n      'Cache-Control': 'no-cache'\n    },\n    // Metadata for logging\n    metadata: {\n      processedCompanies: companies.length,\n      uniqueDomains: uniqueDomains.length,\n      sampleDomains: uniqueDomains.slice(0, 5),\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        648
+      ],
+      "id": "ca03b581-1629-40d7-a9b4-3d678b2b23ea",
+      "name": "Build Apollo Search Payload (Ops & Finance, CTO Excluded)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d4faa56a-4691-4f29-aae8-26c5b6d68128",
+              "leftValue": "={{ $json[\"AI _ Recommendeded action\"] }}",
+              "rightValue": "=Proceed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "984ee771-c906-4bce-8246-8aa9195b0964",
+              "leftValue": "={{ $json[\"is_automation Agecy\"] }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        32,
+        648
+      ],
+      "id": "ba0445c3-0ee8-4be3-871a-32ca280a35f0",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1pXYAa-Iv0hqX3w73FJLSvQJ368Si8YwEvbyFLS_S62E",
+          "mode": "list",
+          "cachedResultName": "sahil apollo sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<REDACTED_SHEET_ID>/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/<REDACTED_SHEET_ID>/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Company Name",
+              "lookupValue": "={{ $('When Executed by Another Workflow').item.json[\"Company Name\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        256,
+        648
+      ],
+      "id": "4fc9c6ba-baee-4f78-b090-5bcd55b3a871",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "96a75972-6778-4416-8264-5d4570b476d9",
+              "leftValue": "={{ $json.num_fetch_result }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        928,
+        648
+      ],
+      "id": "5c0b4d20-a2db-4e9a-800f-25b6651d6042",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.apollo.io/api/v1/mixed_people/api_search?person_titles[]=&q_organization_domains_list[]={{ $json.website }}&contact_email_status[]=verified&contact_email_status[]=likely%20to%20engage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1376,
+        992
+      ],
+      "id": "091e0918-cb63-4d04-9b6f-dfd0f1508e01",
+      "name": "STEP 1: Apollo People Search2",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Get row(s) in sheet').all().map(item => {\n  const website = String(item.json.Website).trim();\n  const domain = website\n    .replace(/^https?:\\/\\/(www\\.)?/, '')\n    .replace(/\\/$/, '')\n    .toLowerCase();\n  return { json: { website: domain } };\n});\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        992
+      ],
+      "id": "cee9ba2d-eef0-4ab2-a69b-2ab7eb2de98e",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract first_name, last_name, id, and title from Apollo response\nconst inputData = $input.first().json;\n\n// Check if we have people array in the response\nif (!inputData.people || !Array.isArray(inputData.people) || inputData.people.length === 0) {\n  return [{ json: { message: \"No leads found.\", contacts: [] } }];\n}\n\n// Map through people array and extract required fields\nconst contacts = inputData.people.map(person => ({\n  first_name: person.first_name || '',\n  last_name: person.last_name_obfuscated || '',\n  id: person.id || '',\n  title: person.title || ''\n}));\n\n// Return all contacts in a single JSON object\nreturn [{ json: { contacts: contacts, total_count: contacts.length } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        992
+      ],
+      "id": "6f7d9a3d-2315-4031-9e95-e6371077c1e8",
+      "name": "Extract Contacts from Apollo Enrichment Response1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ JSON.stringify($json.contacts, null, 2) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a business hierarchy analyst. Your task is to:\n\n1. Analyze the provided job titles\n2. Rank them by decision-making authority in a typical company hierarchy\n3. Return ONLY the top 3 contacts with the highest authority\n4. Assign hierarchy_rank: 1 = highest authority (CEO, Founder), 2 = second highest, 3 = third highest\n\nHierarchy priority order:\n- Founders/Co-Founders (highest)\n- CEO/Chief Executive Officer\n- C-Suite executives (CFO, COO, CTO, CMO, CRO, etc.)\n- Presidents/Managing Directors\n- VPs and Senior VPs\n- Directors and Heads of departments\n\nReturn exactly 3 contacts sorted from rank 1 to 3. If there are fewer than 3 contacts, return all available contacts."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1856,
+        992
+      ],
+      "id": "aafb5949-ce06-4574-a026-bcd7c6ddf379",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"ranked_contacts\": {\n      \"type\": \"array\",\n      \"description\": \"Top 3 contacts ranked by hierarchy\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"hierarchy_rank\": {\n            \"type\": \"number\",\n            \"description\": \"Rank from 1 (highest authority) to 3 (third highest)\"\n          },\n          \"first_name\": {\n            \"type\": \"string\"\n          },\n          \"last_name\": {\n            \"type\": \"string\"\n          },\n          \"id\": {\n            \"type\": \"string\"\n          },\n          \"title\": {\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\"hierarchy_rank\", \"first_name\", \"last_name\", \"id\", \"title\"]\n      },\n      \"maxItems\": 3\n    }\n  },\n  \"required\": [\"ranked_contacts\"]\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1952,
+        1216
+      ],
+      "id": "0ae50508-f6ac-42db-8f94-51cb6bbe3065",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.2",
+          "mode": "list",
+          "cachedResultName": "gpt-5.2"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1824,
+        1216
+      ],
+      "id": "79ec8582-9e5c-41f9-b9f1-1365f41d3cf0",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        1376
+      ],
+      "id": "08cd9c2f-5a1b-421b-835c-41f08b447503",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "<REDACTED_CREDENTIAL_ID>", "name": "<REDACTED_CREDENTIAL_NAME>"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Reoon Verify": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STEP 1: Apollo People Search": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Bulk Results": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STEP 1: Apollo People Search1": {
+      "main": [
+        [
+          {
+            "node": "Normalize Bulk Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Reoon Verify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BookKeepers sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript10": {
+      "main": [
+        [
+          {
+            "node": "BookKeepers sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items4": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Format Leads for Apollo Enrichment Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit Leads per Domain (Max 3)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Leads for Apollo Enrichment Body": {
+      "main": [
+        [
+          {
+            "node": "STEP 1: Apollo People Search1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Contacts from Apollo Enrichment Response": {
+      "main": [
+        [
+          {
+            "node": "Limit Leads per Domain (Max 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Apollo Search Payload (Ops & Finance, CTO Excluded)": {
+      "main": [
+        [
+          {
+            "node": "STEP 1: Apollo People Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Apollo Search Payload (Ops & Finance, CTO Excluded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Contacts from Apollo Enrichment Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "STEP 1: Apollo People Search2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "STEP 1: Apollo People Search2": {
+      "main": [
+        [
+          {
+            "node": "Extract Contacts from Apollo Enrichment Response1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Contacts from Apollo Enrichment Response1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
